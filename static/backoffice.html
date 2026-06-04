@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SupportDesk — Backoffice</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app"></div>
+
+<script src="/static/common.js"></script>
+<script>
+const app = document.getElementById("app");
+let ME = null;
+
+function shell() {
+  return `
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span> SupportDesk <small>backoffice</small></div>
+    <div class="userbox">
+      <span class="tenant-chip">${esc(ME.tenant_name)}</span>
+      <span>${esc(ME.name)} · agente</span>
+      <button class="btn ghost sm" onclick="logout()">Salir</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="card">
+      <h2>Cola de soporte</h2>
+      <div class="hint">Buscá y resolvé tickets para asistir a los usuarios.</div>
+      <div class="row">
+        <div style="flex:3">
+          <label>Buscar por asunto</label>
+          <input id="q" placeholder="ej: urgente" onkeydown="if(event.key==='Enter')runSearch()">
+        </div>
+        <div style="flex:1">
+          <label>Ordenar por</label>
+          <select id="sort" onchange="loadQueue()">
+            <option value="created_at">fecha</option>
+            <option value="priority">prioridad</option>
+            <option value="status">estado</option>
+            <option value="subject">asunto</option>
+          </select>
+        </div>
+        <button class="btn" style="flex:0 0 auto" onclick="runSearch()">Buscar</button>
+        <button class="btn ghost" style="flex:0 0 auto" onclick="loadQueue()">Ver cola</button>
+      </div>
+    </div>
+    <div id="view"></div>
+  </div>`;
+}
+
+function logout(){ clearToken(); location.reload(); }
+
+async function start(user) {
+  ME = user;
+  if (ME.role !== "agent") {
+    app.innerHTML = `<div class="login-shell"><div class="login card">
+      <h2>Acceso restringido</h2>
+      <div class="hint">Esta cuenta no tiene rol de agente. Usá el
+        <a href="/">portal de cliente</a>.</div>
+      <button class="btn ghost sm" onclick="logout()">Salir</button></div></div>`;
+    return;
+  }
+  app.innerHTML = shell();
+  loadQueue();
+}
+
+async function loadQueue() {
+  const sort = document.getElementById("sort").value;
+  const { status, data } = await api("/api/tickets?sort=" + encodeURIComponent(sort));
+  const v = document.getElementById("view");
+  if (status !== 200) {
+    v.innerHTML = `<div class="card"><h2 class="error">Error ${status}</h2>
+      <pre style="white-space:pre-wrap;color:var(--muted);font-size:12px">${esc(JSON.stringify(data,null,2))}</pre></div>`;
+    return;
+  }
+  renderTickets(data.tickets || [], "Cola de tickets");
+}
+
+async function runSearch() {
+  const q = document.getElementById("q").value;
+  const { status, data } = await api("/api/tickets/search?q=" + encodeURIComponent(q));
+  const v = document.getElementById("view");
+  if (status !== 200) {
+    v.innerHTML = `<div class="card"><h2 class="error">Error ${status}</h2>
+      <pre style="white-space:pre-wrap;color:var(--muted);font-size:12px">${esc(JSON.stringify(data,null,2))}</pre></div>`;
+    return;
+  }
+  const rows = (data.results||[]).map(r => `
+    <tr><td class="ref">${esc(r.id)}</td><td>${esc(r.title)}</td></tr>`).join("");
+  v.innerHTML = `<div class="card"><h2>Resultados de búsqueda</h2>
+    <table><thead><tr><th>Ref</th><th>Asunto</th></tr></thead><tbody>${rows}</tbody></table>
+    ${rows?'':'<div class="empty">Sin resultados.</div>'}</div>`;
+}
+
+function renderTickets(tickets, title) {
+  const rows = tickets.map(t => `
+    <tr onclick="openTicket('${t.id}')" style="cursor:pointer">
+      <td class="ref">${esc(t.id)}</td><td>${esc(t.subject)}</td>
+      <td><span class="badge ${t.priority==='high'?'high':''}">${esc(t.priority)}</span></td>
+      <td><span class="badge ${t.status}">${esc(t.status)}</span></td>
+      <td>${esc(t.created_by||'')}</td></tr>`).join("");
+  document.getElementById("view").innerHTML = `<div class="card"><h2>${esc(title)}</h2>
+    <table><thead><tr><th>Ref</th><th>Asunto</th><th>Prio</th><th>Estado</th><th>Creado por</th></tr></thead>
+    <tbody>${rows}</tbody></table>${rows?'':'<div class="empty">Vacío.</div>'}
+    <div id="detail"></div></div>`;
+}
+
+async function openTicket(ref) {
+  const { status, data } = await api("/api/tickets/" + ref);
+  if (status !== 200 || !data.ticket) {
+    document.getElementById("detail").innerHTML =
+      `<div class="note">No se pudo abrir ${esc(ref)} (status ${status}).</div>`;
+    return;
+  }
+  const t = data.ticket;
+  const files = (t.attachments||[]).map(a => `
+    <div class="file-item"><span>📎 ${esc(a.filename)}</span>
+    <a class="btn ghost sm" href="/api/attachments/${a.id}/file?token=${esc(token())}">Descargar</a></div>`).join("");
+  document.getElementById("detail").innerHTML = `
+    <div class="card" style="margin-top:16px">
+      <h2>${esc(t.subject)}</h2><div class="hint ref">${esc(t.id)}</div>
+      <p>${esc(t.body)||'<span class="muted">(sin descripción)</span>'}</p>
+      <div class="kv">
+        <span class="k">Estado</span><span><span class="badge ${t.status}">${esc(t.status)}</span></span>
+        <span class="k">Prioridad</span><span>${esc(t.priority)}</span>
+        <span class="k">Creado por</span><span>${esc(t.created_by||'')}</span>
+        ${t.resolution?`<span class="k">Resolución</span><span>${esc(t.resolution)}</span>`:''}
+      </div>
+      <div style="margin:10px 0">${files||'<span class="muted">Sin adjuntos.</span>'}</div>
+      ${t.status!=='resolved'? `
+        <label>Nota de resolución</label>
+        <textarea id="res">Resuelto.</textarea>
+        <div class="spacer"></div>
+        <button class="btn" onclick="resolve('${t.id}')">Marcar como resuelto</button>`
+        : '<div class="note ok">Ticket resuelto.</div>'}
+    </div>`;
+}
+
+async function resolve(ref) {
+  await api("/api/tickets/"+ref+"/resolve", { method:"POST",
+    json:{ resolution: document.getElementById("res").value }});
+  loadQueue();
+}
+
+(async () => {
+  if (token()) {
+    const { status, data } = await api("/api/me");
+    if (status === 200) { start(data.user); return; }
+    clearToken();
+  }
+  renderLogin(app, "Backoffice de agentes · acceso por código de un solo uso.", start);
+})();
+</script>
+</body>
+</html>

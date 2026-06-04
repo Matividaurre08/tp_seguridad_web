@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>SupportDesk — Portal de cliente</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<div id="app"></div>
+
+<script src="/static/common.js"></script>
+<script>
+const app = document.getElementById("app");
+let ME = null;
+
+function shell(active) {
+  return `
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span> SupportDesk <small>portal de cliente</small></div>
+    <div class="userbox">
+      <span class="tenant-chip">${esc(ME.tenant_name)}</span>
+      <span>${esc(ME.name)} · ${esc(ME.email)}</span>
+      <button class="btn ghost sm" onclick="logout()">Salir</button>
+    </div>
+  </div>
+  <div class="wrap">
+    <div class="tabs">
+      <div class="tab ${active==='tickets'?'active':''}" onclick="showTickets()">Mis tickets</div>
+      <div class="tab ${active==='new'?'active':''}" onclick="showNew()">Nuevo ticket</div>
+      <div class="tab ${active==='invoices'?'active':''}" onclick="showInvoices()">Facturas</div>
+    </div>
+    <div id="view"></div>
+  </div>`;
+}
+
+function logout(){ clearToken(); location.reload(); }
+
+async function start(user) {
+  ME = user;
+  if (ME.role === "agent") {
+    // un agente entra igual, pero el portal de cliente le muestra sus tickets
+  }
+  showTickets();
+}
+
+async function showTickets() {
+  app.innerHTML = shell("tickets");
+  const v = document.getElementById("view");
+  const { data } = await api("/api/tickets?sort=created_at");
+  const rows = (data.tickets || []).map(t => `
+    <tr onclick="openTicket('${t.id}')" style="cursor:pointer">
+      <td class="ref">${esc(t.id)}</td>
+      <td>${esc(t.subject)}</td>
+      <td><span class="badge ${t.priority==='high'?'high':''}">${esc(t.priority)}</span></td>
+      <td><span class="badge ${t.status}">${esc(t.status)}</span></td>
+    </tr>`).join("");
+  v.innerHTML = `<div class="card"><h2>Mis tickets</h2>
+    <div class="hint">Tickets de ${esc(ME.tenant_name)}</div>
+    <table><thead><tr><th>Ref</th><th>Asunto</th><th>Prioridad</th><th>Estado</th></tr></thead>
+    <tbody>${rows || ''}</tbody></table>
+    ${rows? '' : '<div class="empty">Todavía no tenés tickets.</div>'}
+    <div id="detail"></div></div>`;
+}
+
+async function openTicket(ref) {
+  const { data } = await api("/api/tickets/" + ref);
+  if (!data.ticket) return;
+  const t = data.ticket;
+  const files = (t.attachments||[]).map(a => `
+    <div class="file-item"><span>📎 ${esc(a.filename)} <span class="muted">(${a.size} b)</span></span>
+      <a class="btn ghost sm" href="/api/attachments/${a.id}/file?token=${esc(token())}">Descargar</a></div>`).join("");
+  document.getElementById("detail").innerHTML = `
+    <div class="card" style="margin-top:16px">
+      <h2>${esc(t.subject)}</h2>
+      <div class="hint ref">${esc(t.id)}</div>
+      <p>${esc(t.body) || '<span class="muted">(sin descripción)</span>'}</p>
+      <div class="kv">
+        <span class="k">Estado</span><span><span class="badge ${t.status}">${esc(t.status)}</span></span>
+        <span class="k">Prioridad</span><span>${esc(t.priority)}</span>
+        ${t.resolution? `<span class="k">Resolución</span><span>${esc(t.resolution)}</span>`:''}
+      </div>
+      <label>Adjuntar archivo</label>
+      <div class="row">
+        <input type="file" id="file_${t.id}">
+        <button class="btn sm" style="flex:0 0 auto" onclick="upload('${t.id}')">Subir</button>
+      </div>
+      <div style="margin-top:12px">${files || '<span class="muted">Sin adjuntos.</span>'}</div>
+    </div>`;
+}
+
+async function upload(ref) {
+  const inp = document.getElementById("file_"+ref);
+  if (!inp.files.length) return;
+  const fd = new FormData(); fd.append("file", inp.files[0]);
+  await fetch("/api/tickets/"+ref+"/attachments", {
+    method:"POST", headers:{Authorization:"Bearer "+token()}, body: fd });
+  openTicket(ref);
+}
+
+function showNew() {
+  app.innerHTML = shell("new");
+  document.getElementById("view").innerHTML = `
+    <div class="card"><h2>Nuevo ticket</h2>
+      <div class="hint">Se creará dentro de ${esc(ME.tenant_name)}</div>
+      <label>Asunto</label><input id="subj">
+      <label>Descripción</label><textarea id="body"></textarea>
+      <label>Prioridad</label>
+      <select id="prio"><option value="normal">normal</option><option value="high">high</option></select>
+      <div class="spacer"></div>
+      <button class="btn" onclick="createTicket()">Crear ticket</button>
+      <div class="error" id="ne"></div>
+    </div>`;
+}
+
+async function createTicket() {
+  const subject = document.getElementById("subj").value.trim();
+  if (!subject) { document.getElementById("ne").textContent="El asunto es obligatorio."; return; }
+  await api("/api/tickets", { method:"POST", json:{
+    subject, body: document.getElementById("body").value, priority: document.getElementById("prio").value }});
+  showTickets();
+}
+
+async function showInvoices() {
+  app.innerHTML = shell("invoices");
+  const { data } = await api("/api/invoices");
+  const rows = (data.invoices||[]).map(i => `
+    <tr><td class="ref">${esc(i.id)}</td><td>${esc(i.number)}</td><td>${esc(i.period)}</td>
+      <td>${i.currency} ${i.amount.toLocaleString()}</td>
+      <td><span class="badge ${i.status==='overdue'?'high':''}">${esc(i.status)}</span></td>
+      <td>${i.document? `<a class="btn ghost sm" href="${i.document}?token=${esc(token())}">PDF</a>`:'—'}</td></tr>`).join("");
+  document.getElementById("view").innerHTML = `<div class="card"><h2>Facturas</h2>
+    <div class="hint">Facturas emitidas a ${esc(ME.tenant_name)}</div>
+    <table><thead><tr><th>Ref</th><th>N°</th><th>Período</th><th>Importe</th><th>Estado</th><th>Doc</th></tr></thead>
+    <tbody>${rows}</tbody></table>${rows?'':'<div class="empty">Sin facturas.</div>'}</div>`;
+}
+
+// arranque
+(async () => {
+  if (token()) {
+    const { status, data } = await api("/api/me");
+    if (status === 200) { start(data.user); return; }
+    clearToken();
+  }
+  renderLogin(app, "Portal de cliente · acceso passwordless por código de un solo uso.", start);
+})();
+</script>
+</body>
+</html>
