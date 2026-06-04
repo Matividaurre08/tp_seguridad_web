@@ -23,8 +23,7 @@ function esc(s) {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
-
-// Widget de login passwordless (etapa 1: email+captcha, etapa 2: OTP)
+// RENDERIZA EL FORMULARIO DE LOGIN
 function renderLogin(container, subtitle, onSuccess) {
   let captcha = null;
 
@@ -35,11 +34,26 @@ function renderLogin(container, subtitle, onSuccess) {
   }
 
   container.innerHTML = `
-    <div class="login-shell"><div class="login card">
-      <h2>Acceso</h2>
-      <div class="hint">${subtitle}</div>
+  <div class="login-shell">
 
-      <div id="stage1">
+    <div class="login-wrapper">
+
+      <div class="login-brand">
+        <div>
+          <div class="login-title">SupportDesk</div>
+          <div class="login-subtitle">Portal de acceso seguro</div>
+        </div>
+      </div>
+
+      <div class="login card">
+
+        <div class="auth-header">
+          <div class="auth-icon">🔐</div>
+          <h2>Verificación de identidad</h2>
+          <div class="hint">${subtitle}</div>
+        </div>
+
+        <div id="stage1">
         <label>Email corporativo</label>
         <input id="email" placeholder="alice@acme.local" autocomplete="off">
         <label>Verificación: <span id="captchaQ" class="mono"></span></label>
@@ -57,7 +71,9 @@ function renderLogin(container, subtitle, onSuccess) {
       </div>
 
       <div class="error" id="loginErr"></div>
-    </div></div>`;
+    </div>
+    </div>
+  </div>`;
 
   const err = (m) => (document.getElementById("loginErr").textContent = m || "");
 
