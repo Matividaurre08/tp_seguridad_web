@@ -1,0 +1,52 @@
+%PDF-1.4
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>
+endobj
+4 0 obj
+<< /Length 655 >>
+stream
+BT
+/F1 11 Tf
+12 TL
+50 770 Td
+/F1 16 Tf (Factura INV-0001 - Acme Inc.) Tj
+0 -28 Td /F1 11 Tf
+(FACTURA CONFIDENCIAL  -  Acme Inc.) Tj 0 -16 Td
+() Tj 0 -16 Td
+(Tenant slug      : acme) Tj 0 -16 Td
+(Numero           : INV-0001) Tj 0 -16 Td
+(Periodo          : 2026-03) Tj 0 -16 Td
+(Importe          : USD 1,840.00) Tj 0 -16 Td
+(Estado           : issued) Tj 0 -16 Td
+() Tj 0 -16 Td
+(ESTADO CONTABLE \(extracto\)) Tj 0 -16 Td
+(  Ingresos netos        : USD 16,560.00) Tj 0 -16 Td
+(  Saldo de cuenta       : USD 3,128.00) Tj 0 -16 Td
+(  CBU/Cuenta            : 01702144993931) Tj 0 -16 Td
+() Tj 0 -16 Td
+(Documento de uso interno. No distribuir.) Tj 0 -16 Td
+ET
+endstream
+endobj
+5 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000009 00000 n 
+0000000058 00000 n 
+0000000115 00000 n 
+0000000241 00000 n 
+0000000947 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1017
+%%EOF

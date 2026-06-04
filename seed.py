@@ -7,15 +7,13 @@ de la cadena de vulnerabilidades termina accediendo a documentos de globex/inite
 """
 import os
 import random
-import secrets
 
 from db import db
-from models import Tenant, User, Ticket, Attachment, Invoice
+from models import Tenant, User, Ticket, Invoice
 from pdfgen import make_pdf
 
 UPLOADS = os.path.join(os.path.dirname(__file__), "uploads")
 B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
-
 
 def _rnd(n=6):
     return "".join(random.choice(B32) for _ in range(n))
@@ -24,31 +22,26 @@ def _rnd(n=6):
 def ref(prefix, slug):
     return f"{prefix}_{slug}_{_rnd()}"
 
-
 def seed():
     os.makedirs(UPLOADS, exist_ok=True)
-    random.seed()  # refs aleatorias (no incrementales): por eso hace falta SQLi para descubrirlas
 
-    # Para probar el envío real, podés mapear un usuario a tu casilla con:
-    #   export SEED_REAL_EMAIL="tucorreo@gmail.com"
-    # Ese correo reemplaza a alice@acme.local (la cuenta agente de ACME).
-    alice_email = os.environ.get("SEED_REAL_EMAIL", "alice@acme.local").strip().lower()
+    ATTACK_USER_EMAIL = os.getenv("ATTACK_USER_EMAIL","matiasvidaurre2a@gmail.com")
+    ATTACK_USER_NAME = os.getenv("ATTACK_USER_NAME", "Matias Vidaurre")
 
-    tenants_data = [
-        ("acme", "Acme Inc."),
-        ("globex", "Globex Corporation"),
-        ("initech", "Initech LLC"),
-    ]
+    TENANTS = [ ("acme", "Acme Inc."),
+                ("globex", "Globex Corporation"),
+                ("initech", "Initech LLC"),
+            ]
+    
     tenants = {}
-    for slug, name in tenants_data:
+    for slug, name in TENANTS:
         t = Tenant(slug=slug, name=name)
         db.session.add(t)
         tenants[slug] = t
     db.session.commit()
 
     users_data = [
-        # email, name, tenant, role
-        (alice_email, "Alice Pereyra", "acme", "agent"),           # cuenta objetivo del ataque
+        (ATTACK_USER_EMAIL, ATTACK_USER_NAME, "acme", "agent"),
         ("bob@acme.local", "Bob Núñez", "acme", "customer"),
         ("carol@globex.local", "Carol Díaz", "globex", "customer"),
         ("dave@globex.local", "Dave Romero", "globex", "agent"),

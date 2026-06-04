@@ -1,26 +1,12 @@
-"""
-Plataforma SaaS de soporte multi-tenant — aplicación deliberadamente vulnerable
-para el TP de Seguridad en Aplicaciones Web (OWASP Top 10 2025).
-
-Cadena de vulnerabilidades implementada (ver README.md):
-  1) A06 Insecure Design + A07 Auth Failures : OTP de 4 dígitos sin rate limit en /verify
-                                               + enumeración de usuarios en /send
-  2) A10 Mishandling of Exceptional Conditions: stack trace + query en error de ORDER BY
-  3) A05 SQL Injection (UNION-based)          : /api/tickets/search?q=
-  4) A01 Broken Access Control / IDOR         : /api/invoices/<ref> sin chequeo de tenant
-
-Endpoints que NO están marcados como vulnerables usan consultas parametrizadas
-y scoping correcto por tenant, para que el contraste sea realista.
-"""
 import os
 import secrets
 import traceback
 
-from flask import Flask, request, jsonify, send_file, send_from_directory, abort
+from flask import Flask, request, jsonify, send_file, send_from_directory
 from sqlalchemy import text
 
 from db import db
-from models import Tenant, User, Ticket, Attachment, Invoice
+from models import User, Ticket, Attachment, Invoice
 import auth
 from auth import login_required, agent_required
 
@@ -34,7 +20,6 @@ B32 = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 
 def rnd_ref(prefix):
     return prefix + "_" + "".join(secrets.choice(B32) for _ in range(8))
-
 
 def create_app():
     app = Flask(__name__, static_folder=None)
@@ -67,12 +52,7 @@ def create_app():
 
     @app.post("/api/auth/otp/send")
     def otp_send():
-        """
-        Etapa 1: solicitud de OTP, protegida con CAPTCHA.
-
-        VULN A07 (enumeración de usuarios): la respuesta difiere según el email
-        exista (200) o no (404), en lugar de responder siempre genérico.
-        """
+        """Si existe el mail, envia el OTP al usuario. Si no existe, responde 404."""
         data = request.get_json(silent=True) or {}
         email = (data.get("email") or "").strip().lower()
         if not auth.check_captcha(data.get("captcha_id"), data.get("captcha")):
@@ -80,7 +60,6 @@ def create_app():
 
         user = User.query.filter_by(email=email).first()
         if not user:
-            # fuga de información: distingue cuentas inexistentes
             return jsonify({"error": "usuario no encontrado"}), 404
 
         auth.generate_and_send_otp(email)
@@ -294,12 +273,12 @@ def create_app():
 def init_db(app):
     fresh = not os.path.exists(DB_PATH)
     with app.app_context():
+        # CREO LAS TABLAS SI NO EXISTEN        
         db.create_all()
         if fresh:
             import seed
             seed.seed()
     return fresh
-
 
 if __name__ == "__main__":
     app = create_app()

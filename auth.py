@@ -24,16 +24,11 @@ from flask import request, jsonify
 from db import db
 from models import OtpCode, Captcha, Session, User, utcnow
 
-# --- Parámetros de diseño (los valores "inseguros" son deliberados) ---
-OTP_TTL_MINUTES = 15          # TTL extendido por latencia del proveedor de email
-OTP_DIGITS = 4                # espacio de 10.000 combinaciones
+OTP_TTL_MINUTES = 30
+OTP_DIGITS = 4
 CAPTCHA_TTL_MINUTES = 5
 
-MAILBOX_DIR = os.path.join(os.path.dirname(__file__), "mailbox")
-
-# --- Configuración de envío de email real (SMTP), por variables de entorno ---
-# Si SMTP_HOST está definido, el OTP se manda a un correo real. Si no, se usa
-# solo el simulador local (consola + mailbox/).
+# CONFIGURACION SMTP
 SMTP_HOST = os.environ.get("SMTP_HOST")
 SMTP_PORT = int(os.environ.get("SMTP_PORT", "587"))
 SMTP_USER = os.environ.get("SMTP_USER")
@@ -42,8 +37,6 @@ SMTP_FROM = os.environ.get("SMTP_FROM", SMTP_USER or "no-reply@supportdesk.local
 SMTP_MODE = os.environ.get("SMTP_MODE", "starttls").lower()  # starttls | ssl | plain
 SMTP_TIMEOUT = int(os.environ.get("SMTP_TIMEOUT", "15"))
 
-
-# ---------------------------------------------------------------- CAPTCHA
 def new_captcha():
     a, b = random.randint(1, 9), random.randint(1, 9)
     cid = secrets.token_hex(8)
@@ -55,7 +48,6 @@ def new_captcha():
     db.session.add(c)
     db.session.commit()
     return {"captcha_id": cid, "question": f"{a} + {b} = ?"}
-
 
 def check_captcha(captcha_id, answer):
     if not captcha_id or answer is None:
@@ -73,9 +65,8 @@ def check_captcha(captcha_id, answer):
     db.session.commit()
     return ok
 
-
-# ---------------------------------------------------------------- OTP
 def generate_and_send_otp(email):
+    '''Genera un OTP, lo guarda en la base de datos y lo envia por mail'''
     code = "".join(random.choice(string.digits) for _ in range(OTP_DIGITS))
     otp = OtpCode(
         email=email,
@@ -89,24 +80,14 @@ def generate_and_send_otp(email):
 
 
 def _deliver_email(email, code):
-    """
-    Entrega el OTP. Siempre lo deja en el simulador local (consola + mailbox/)
-    para facilitar el debug, y además lo manda por SMTP a un correo real si hay
-    SMTP_HOST configurado.
-    """
-    body = (
-        f"Tu codigo de un solo uso es: {code}\n"
-        f"Vence en {OTP_TTL_MINUTES} minutos.\n\n"
-        f"Si no solicitaste este codigo, ignora este mensaje.\n"
-    )
-
-    # 1) Simulador local (siempre)
-    os.makedirs(MAILBOX_DIR, exist_ok=True)
-    with open(os.path.join(MAILBOX_DIR, f"{email}.txt"), "w") as fh:
-        fh.write(f"Para: {email}\nAsunto: Tu codigo de acceso\n\n{body}")
-    print(f"\n[EMAIL-SIM] -> {email} | OTP = {code} (TTL {OTP_TTL_MINUTES}min)\n")
-
-    # 2) Envío real por SMTP (si está configurado)
+    '''Envia el OTP por email'''
+    
+    # GENERO EL MAIL
+    with open("./static/email.html", "r", encoding="utf-8") as f:
+        email_template = f.read()
+    body = email_template.replace("{{CODE}}", code).replace("{{TTL}}", str(OTP_TTL_MINUTES))
+    
+    # ENVIO POR SMTP
     if not SMTP_HOST:
         return
     try:
@@ -114,7 +95,7 @@ def _deliver_email(email, code):
         msg["Subject"] = "Tu codigo de acceso - SupportDesk"
         msg["From"] = SMTP_FROM
         msg["To"] = email
-        msg.set_content(body)
+        msg.set_content(body, subtype="html")
 
         if SMTP_MODE == "ssl":
             ctx = ssl.create_default_context()
