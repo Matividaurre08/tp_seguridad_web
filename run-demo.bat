@@ -1,6 +1,11 @@
 @echo off
 
+pip install -r requirements.txt
+
 if exist support.db del support.db
+
+if exist uploads rd /s /q uploads
+mkdir uploads
 
 set ATTACK_USER_EMAIL=mvidaurre@frba.utn.edu.ar
 set ATTACK_USER_NAME=Matias Vidaurre2323232

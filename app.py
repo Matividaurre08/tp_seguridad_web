@@ -249,7 +249,9 @@ def create_app():
         verifica que la factura pertenezca al tenant del usuario. Cualquier
         sesión válida puede leer una factura de otro tenant conociendo su ref.
         """
-        inv = Invoice.query.filter_by(public_ref=ref).first()   # <-- sin filtro de tenant
+        print(f"DEBUG buscando ref: '{ref}'")
+        inv = Invoice.query.filter_by(public_ref=ref).first()
+        print(f"DEBUG resultado: {inv}")
         if not inv:
             return jsonify({"error": "factura no encontrada"}), 404
         return jsonify({"invoice": inv.to_dict()})

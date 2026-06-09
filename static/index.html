@@ -44,10 +44,42 @@ async function start(user) {
   showTickets();
 }
 
+let TICKET_SORT = "created_at";
+
 async function showTickets() {
   app.innerHTML = shell("tickets");
   const v = document.getElementById("view");
-  const { data } = await api("/api/tickets?sort=created_at");
+  v.innerHTML = `<div class="card"><h2>Mis tickets</h2>
+    <div class="hint">Tickets de ${esc(ME.tenant_name)}</div>
+    <div class="row" style="margin-bottom:30px">
+      <input id="tk_q" placeholder="Buscar por asunto…" oninput="onSearchInput()">
+      <select id="tk_sort" style="flex:0 0 auto" onchange="changeSort()">
+        <option value="created_at">Más recientes (fecha)</option>
+        <option value="subject">Asunto</option>
+        <option value="priority">Prioridad</option>
+        <option value="status">Estado</option>
+      </select>
+    </div>
+    <table>
+      <thead><tr><th>Ref</th><th>Asunto</th><th>Prioridad</th><th>Estado</th></tr></thead>
+      <tbody id="tk_rows"></tbody>
+    </table>
+    <div id="tk_empty"></div>
+    <div id="detail"></div>
+  </div>`;
+  loadTickets();
+}
+
+function paintRows(rows) {
+  document.getElementById("tk_rows").innerHTML = rows || "";
+  document.getElementById("tk_empty").innerHTML =
+    rows ? "" : '<div class="empty">No hay tickets para mostrar.</div>';
+}
+
+async function loadTickets() {
+  const sort = document.getElementById("tk_sort").value;
+  TICKET_SORT = sort;
+  const { data } = await api("/api/tickets?sort=" + encodeURIComponent(sort));
   const rows = (data.tickets || []).map(t => `
     <tr onclick="openTicket('${t.id}')" style="cursor:pointer">
       <td class="ref">${esc(t.id)}</td>
@@ -55,12 +87,32 @@ async function showTickets() {
       <td><span class="badge ${t.priority==='high'?'high':''}">${esc(t.priority)}</span></td>
       <td><span class="badge ${t.status}">${esc(t.status)}</span></td>
     </tr>`).join("");
-  v.innerHTML = `<div class="card"><h2>Mis tickets</h2>
-    <div class="hint">Tickets de ${esc(ME.tenant_name)}</div>
-    <table><thead><tr><th>Ref</th><th>Asunto</th><th>Prioridad</th><th>Estado</th></tr></thead>
-    <tbody>${rows || ''}</tbody></table>
-    ${rows? '' : '<div class="empty">Todavía no tenés tickets.</div>'}
-    <div id="detail"></div></div>`;
+  paintRows(rows);
+}
+
+let _tkTimer;
+function onSearchInput() {
+  clearTimeout(_tkTimer);
+  _tkTimer = setTimeout(searchTickets, 300);
+}
+
+async function searchTickets() {
+  const q = document.getElementById("tk_q").value.trim();
+  if (!q) { loadTickets(); return; }
+  const { data } = await api("/api/tickets/search?q=" + encodeURIComponent(q));
+  const rows = (data.results || []).map(r => `
+    <tr onclick="openTicket('${r.id}')" style="cursor:pointer">
+      <td class="ref">${esc(r.id)}</td>
+      <td>${esc(r.title)}</td>
+      <td colspan="2" class="muted">—</td>
+    </tr>`).join("");
+  paintRows(rows);
+}
+
+function changeSort() {
+  const inp = document.getElementById("tk_q");
+  if (inp) inp.value = "";
+  loadTickets();
 }
 
 async function openTicket(ref) {

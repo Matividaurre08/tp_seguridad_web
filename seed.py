@@ -93,33 +93,20 @@ def seed():
     for slug, (num, period, amount, status) in invoices_seed.items():
         t = tenants[slug]
         public_ref = ref("inv", slug)
-        pdf_lines = [
-            f"FACTURA CONFIDENCIAL  -  {t.name}",
-            "",
-            f"Tenant slug      : {slug}",
-            f"Numero           : INV-{num}",
-            f"Periodo          : {period}",
-            f"Importe          : USD {amount:,.2f}",
-            f"Estado           : {status}",
-            "",
-            "ESTADO CONTABLE (extracto)",
-            f"  Ingresos netos        : USD {amount*9:,.2f}",
-            f"  Saldo de cuenta       : USD {amount*1.7:,.2f}",
-            f"  CBU/Cuenta            : 0170{random.randint(10**9,10**10-1)}",
-            "",
-            "Documento de uso interno. No distribuir.",
-        ]
-        pdf_bytes = make_pdf(pdf_lines, title=f"Factura INV-{num} - {t.name}")
         doc_name = f"{public_ref}.pdf"
         doc_path = os.path.join(UPLOADS, doc_name)
-        with open(doc_path, "wb") as fh:
-            fh.write(pdf_bytes)
 
-        db.session.add(Invoice(
+        invoice = Invoice(
             tenant_id=t.id, tenant_slug=slug, public_ref=public_ref,
             number=f"INV-{num}", period=period, amount=amount, status=status,
             currency="USD", document_path=doc_path,
-        ))
+        )
+
+        pdf_bytes = make_pdf(invoice)
+        with open(doc_path, "wb") as fh:
+            fh.write(pdf_bytes)
+
+        db.session.add(invoice)
     db.session.commit()
 
     print("Seed completo:")
