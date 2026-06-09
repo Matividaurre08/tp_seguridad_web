@@ -118,14 +118,9 @@ def _deliver_email(email, code):
 
 
 def verify_otp(email, code):
-    """
-    Valida el OTP. VULNERABILIDAD INTENCIONAL (A06/A07):
-      - sin rate limiting ni bloqueo por intentos fallidos
-      - sin invalidar el OTP tras intentos incorrectos
-    """
     now = utcnow()
     otps = (
-        OtpCode.query.filter_by(email=email, consumed=False)
+        OtpCode.query.filter_by(email=email)
         .order_by(OtpCode.id.desc())
         .all()
     )
@@ -136,7 +131,6 @@ def verify_otp(email, code):
         if expires < now:
             continue
         if otp.code == code:
-            otp.consumed = True
             db.session.commit()
             return True
     return False

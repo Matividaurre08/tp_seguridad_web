@@ -138,7 +138,6 @@ class OtpCode(db.Model):
     email = db.Column(db.String(190), nullable=False, index=True)
     code = db.Column(db.String(8), nullable=False)               # 4 dígitos
     expires_at = db.Column(db.DateTime, nullable=False)
-    consumed = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=utcnow)
 
 
